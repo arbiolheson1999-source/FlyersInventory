@@ -1,0 +1,237 @@
+from flask import Flask, render_template, request, redirect
+import psycopg2
+
+app = Flask(__name__)
+
+# PostgreSQL connection
+import os
+
+conn = psycopg2.connect(os.environ.get("postgresql://flyers_db_user:EPxxshJf2JINgzvYngYSiNgu74L9yV8Y@dpg-d79iv3qdbo4c73acmkpg-a/flyers_db"))
+
+# HOME PAGE
+@app.route('/')
+def index():
+    cur = conn.cursor()
+
+    # Get branches
+    cur.execute("""
+    SELECT b.id, b.name, COALESCE(SUM(s.remaining_quantity), 0) as total_remaining
+    FROM branches b
+    LEFT JOIN branch_flyer_stock s ON b.id = s.branch_id
+    GROUP BY b.id, b.name
+    ORDER BY b.name
+""")
+    branches = cur.fetchall()
+
+    # Get flyers
+    cur.execute("SELECT id, name FROM flyers")
+    flyers = cur.fetchall()
+
+    # Get filters
+    selected_branch = request.args.get('branch')
+    selected_quarter = request.args.get('quarter')
+    selected_month = request.args.get('month')
+    selected_year = request.args.get('year')
+
+    # Summary query
+    summary_query = """
+    SELECT b.name, d.quarter, SUM(d.quantity) AS total_quantity
+    FROM distributions d
+    JOIN branches b ON d.branch_id = b.id
+    WHERE 1=1
+"""
+    params = []
+
+    if selected_branch:
+        summary_query += " AND d.branch_id = %s"
+        params.append(selected_branch)
+    if selected_year:
+        summary_query += " AND EXTRACT(YEAR FROM d.date) = %s"
+        params.append(selected_year)
+
+    summary_query += " GROUP BY b.name, d.quarter ORDER BY b.name, d.quarter"
+    cur.execute(summary_query, params)
+    summary = cur.fetchall()
+
+    # All records
+    records_query = """
+        SELECT d.id, b.name, f.name, d.quantity, d.quarter, EXTRACT(MONTH FROM d.date) AS month,
+               EXTRACT(YEAR FROM d.date) AS year
+        FROM distributions d
+        JOIN branches b ON d.branch_id = b.id
+        JOIN flyers f ON d.flyer_id = f.id
+        WHERE 1=1
+    """
+    rec_params = []
+    if selected_branch:
+        records_query += " AND d.branch_id = %s"
+        rec_params.append(selected_branch)
+    if selected_quarter:
+        records_query += " AND d.quarter = %s"
+        rec_params.append(selected_quarter)
+    if selected_month:
+        records_query += " AND EXTRACT(MONTH FROM d.date) = %s"
+        rec_params.append(selected_month)
+    if selected_year:
+        records_query += " AND EXTRACT(YEAR FROM d.date) = %s"
+        rec_params.append(selected_year)
+
+    records_query += " ORDER BY d.date DESC"
+    cur.execute(records_query, rec_params)
+    records = cur.fetchall()
+
+    cur.close()
+
+    return render_template(
+        'index.html',
+        branches=branches,
+        flyers=flyers,
+        summary=summary,
+        records=records,
+        selected_branch=selected_branch,
+        selected_quarter=selected_quarter,
+        selected_month=selected_month,
+        selected_year=selected_year
+    )
+@app.route('/add_stock', methods=['POST'])
+def add_stock():
+    branch_id = request.form['branch']
+    flyer_id = request.form['flyer']
+    quantity = int(request.form['quantity'])
+
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            INSERT INTO branch_flyer_stock (branch_id, flyer_id, remaining_quantity)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (branch_id, flyer_id)
+            DO UPDATE SET remaining_quantity =
+                branch_flyer_stock.remaining_quantity + EXCLUDED.remaining_quantity
+        """, (branch_id, flyer_id, quantity))
+
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        return str(e), 500
+    finally:
+        cur.close()
+
+    return redirect('/')
+
+# ADD DISTRIBUTION
+@app.route('/add', methods=['POST'])
+def add():
+    branch_id = request.form['branch']
+    flyer_id = request.form['flyer']
+    quantity = int(request.form['quantity'])
+    month = int(request.form['month'])
+
+# Auto compute quarter
+    if month in [1, 2, 3]:
+        quarter = 'Q1'
+    elif month in [4, 5, 6]:
+        quarter = 'Q2'
+    elif month in [7, 8, 9]:
+        quarter = 'Q3'
+    else:
+        quarter = 'Q4'
+    year = request.form['year']
+
+    cur = conn.cursor()
+    try:
+        #  CHECK STOCK PER BRANCH
+        cur.execute("""
+            SELECT remaining_quantity 
+            FROM branch_flyer_stock
+            WHERE branch_id = %s AND flyer_id = %s
+        """, (branch_id, flyer_id))
+
+        row = cur.fetchone()
+
+        if not row:
+            conn.rollback()
+            return "No stock for this branch", 400
+
+        remaining = row[0]
+
+        if quantity > remaining:
+            conn.rollback()
+            return f"Cannot distribute {quantity}, only {remaining} remaining in this branch", 400
+
+        #  INSERT DISTRIBUTION (ONLY AFTER CHECK)
+        cur.execute("""
+            INSERT INTO distributions (branch_id, flyer_id, quantity, quarter, date)
+            VALUES (%s, %s, %s, %s, MAKE_DATE(%s, %s, 1))
+        """, (branch_id, flyer_id, quantity, quarter, year, month))
+
+        #  DEDUCT STOCK PER BRANCH
+        cur.execute("""
+            UPDATE branch_flyer_stock
+            SET remaining_quantity = remaining_quantity - %s
+            WHERE branch_id = %s AND flyer_id = %s
+        """, (quantity, branch_id, flyer_id))
+
+        conn.commit()
+
+    except Exception as e:
+        conn.rollback()
+        return f"Database error: {e}", 500
+    finally:
+        cur.close()
+
+    return redirect('/')
+
+
+# DELETE DISTRIBUTION
+@app.route('/delete', methods=['POST'])
+def delete():
+    record_id = request.form['record_id']
+
+    cur = conn.cursor()
+    try:
+        # Get quantity & flyer_id for remaining update
+        cur.execute("SELECT flyer_id, quantity FROM distributions WHERE id = %s", (record_id,))
+        data = cur.fetchone()
+        if data:
+            flyer_id, qty = data
+            # restore remaining quantity
+            cur.execute("UPDATE flyers SET remaining_quantity = remaining_quantity + %s WHERE id = %s",
+                        (qty, flyer_id))
+
+        # delete record
+        cur.execute("DELETE FROM distributions WHERE id = %s", (record_id,))
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        return f"Database error: {e}", 500
+    finally:
+        cur.close()
+
+    return redirect('/')
+
+@app.route('/get_remaining')
+def get_remaining():
+    branch_id = request.args.get('branch_id')
+    flyer_id = request.args.get('flyer_id')
+
+    if not branch_id or not flyer_id:
+        return {"remaining": 0}
+
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT remaining_quantity
+        FROM branch_flyer_stock
+        WHERE branch_id = %s AND flyer_id = %s
+    """, (branch_id, flyer_id))
+
+    row = cur.fetchone()
+    cur.close()
+
+    remaining = row[0] if row else 0
+    return {"remaining": remaining}
+
+import os
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)

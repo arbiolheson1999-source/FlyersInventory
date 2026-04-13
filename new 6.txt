@@ -1,0 +1,40 @@
+function onEdit(e) {
+  const sheet = e.range.getSheet();
+  const row = e.range.getRow();
+  const col = e.range.getColumn();
+
+  const BRANCH_COLUMN = 4; // Column D
+
+  // Only trigger when Branch column is edited
+  if (col !== BRANCH_COLUMN || row === 1) return;
+
+  const lastColumn = sheet.getLastColumn();
+  const data = sheet.getRange(row, 1, 1, lastColumn).getValues()[0];
+  const branchName = data[BRANCH_COLUMN - 1];
+
+  // ✅ Get BranchMap sheet
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const mapSheet = ss.getSheetByName("BranchMap");
+  const mapData = mapSheet.getDataRange().getValues();
+
+  let targetId = null;
+
+  // Loop through BranchMap
+  for (let i = 1; i < mapData.length; i++) {
+    if (mapData[i][0] === branchName) {
+      targetId = mapData[i][1];
+      break;
+    }
+  }
+
+  if (!targetId) return;
+
+  const targetSS = SpreadsheetApp.openById(targetId);
+  const targetSheet = targetSS.getSheets()[0];
+
+  targetSheet.appendRow(data);
+}
+
+
+
+1VVrHN9yPRSe3oK3zKI5TNEkh4tHdi4m4ut2u5wSjYkQ
