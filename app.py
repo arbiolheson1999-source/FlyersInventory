@@ -20,69 +20,20 @@ def get_conn():
 # HOME PAGE
 @app.route('/')
 def index():
-    conn = get_conn()
-    cur = conn.cursor()
+    try:
+        conn = get_conn()
+        cur = conn.cursor()
 
-    # Get branches
-    cur.execute("""
-        SELECT b.id, b.name, COALESCE(SUM(s.remaining_quantity), 0) as total_remaining
-        FROM branches b
-        LEFT JOIN branch_flyer_stock s ON b.id = s.branch_id
-        GROUP BY b.id, b.name
-        ORDER BY b.name
-    """)
-    branches = cur.fetchall()
+        cur.execute("SELECT 1")
+        result = cur.fetchone()
 
-    # Get flyers
-    cur.execute("SELECT id, name FROM flyers")
-    flyers = cur.fetchall()
+        cur.close()
+        conn.close()
 
-    # Get filters
-    selected_branch = request.args.get('branch')
-    selected_quarter = request.args.get('quarter')
-    selected_month = request.args.get('month')
-    selected_year = request.args.get('year')
+        return f"DB OK: {result}"
 
-    # Build summary query
-    summary_query = """
-        SELECT b.name, d.quarter, SUM(d.quantity) AS total_quantity
-        FROM distributions d
-        JOIN branches b ON d.branch_id = b.id
-        WHERE 1=1
-    """
-
-    params = []
-
-    if selected_branch:
-        summary_query += " AND d.branch_id = %s"
-        params.append(selected_branch)
-
-    if selected_quarter:
-        summary_query += " AND d.quarter = %s"
-        params.append(selected_quarter)
-
-    if selected_month:
-        summary_query += " AND d.month = %s"
-        params.append(selected_month)
-
-    if selected_year:
-        summary_query += " AND d.year = %s"
-        params.append(selected_year)
-
-    summary_query += " GROUP BY b.name, d.quarter ORDER BY b.name"
-
-    cur.execute(summary_query, params)
-    summary = cur.fetchall()
-
-    cur.close()
-    conn.close()
-
-    return render_template(
-        'index.html',
-        branches=branches,
-        flyers=flyers,
-        summary=summary
-    )
+    except Exception as e:
+        return f"ERROR: {str(e)}"
 
 
 # ADD STOCK
