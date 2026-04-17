@@ -6,7 +6,7 @@ app = Flask(__name__)
 
 # 🔥 FIXED DATABASE CONNECTION FUNCTION
 def get_conn():
-    db_url = os.environ.get("DATABASE_URL")
+    db_url = os.environ.get("postgresql://flyers_db_user:EPxxshJf2JINgzvYngYSiNgu74L9yV8Y@dpg-d79iv3qdbo4c73acmkpg-a/flyers_db")
 
     if not db_url:
         raise Exception("DATABASE_URL is not set")
