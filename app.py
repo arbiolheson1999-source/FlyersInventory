@@ -15,12 +15,12 @@ def index():
 
     # Get branches
     cur.execute("""
-    SELECT b.id, b.name, COALESCE(SUM(s.remaining_quantity), 0) as total_remaining
-    FROM branches b
-    LEFT JOIN branch_flyer_stock s ON b.id = s.branch_id
-    GROUP BY b.id, b.name
-    ORDER BY b.name
-""")
+        SELECT b.id, b.name, COALESCE(SUM(s.remaining_quantity), 0) as total_remaining
+        FROM branches b
+        LEFT JOIN branch_flyer_stock s ON b.id = s.branch_id
+        GROUP BY b.id, b.name
+        ORDER BY b.name
+    """)
     branches = cur.fetchall()
 
     # Get flyers
@@ -33,52 +33,36 @@ def index():
     selected_month = request.args.get('month')
     selected_year = request.args.get('year')
 
-    # Summary query
+    # Build summary query
     summary_query = """
-    SELECT b.name, d.quarter, SUM(d.quantity) AS total_quantity
-    FROM distributions d
-    JOIN branches b ON d.branch_id = b.id
-    WHERE 1=1
-"""
+        SELECT b.name, d.quarter, SUM(d.quantity) AS total_quantity
+        FROM distributions d
+        JOIN branches b ON d.branch_id = b.id
+        WHERE 1=1
+    """
+
     params = []
 
     if selected_branch:
         summary_query += " AND d.branch_id = %s"
         params.append(selected_branch)
+
+    if selected_quarter:
+        summary_query += " AND d.quarter = %s"
+        params.append(selected_quarter)
+
+    if selected_month:
+        summary_query += " AND d.month = %s"
+        params.append(selected_month)
+
     if selected_year:
-        summary_query += " AND EXTRACT(YEAR FROM d.date) = %s"
+        summary_query += " AND d.year = %s"
         params.append(selected_year)
 
-    summary_query += " GROUP BY b.name, d.quarter ORDER BY b.name, d.quarter"
+    summary_query += " GROUP BY b.name, d.quarter ORDER BY b.name"
+
     cur.execute(summary_query, params)
     summary = cur.fetchall()
-
-    # All records
-    records_query = """
-        SELECT d.id, b.name, f.name, d.quantity, d.quarter, EXTRACT(MONTH FROM d.date) AS month,
-               EXTRACT(YEAR FROM d.date) AS year
-        FROM distributions d
-        JOIN branches b ON d.branch_id = b.id
-        JOIN flyers f ON d.flyer_id = f.id
-        WHERE 1=1
-    """
-    rec_params = []
-    if selected_branch:
-        records_query += " AND d.branch_id = %s"
-        rec_params.append(selected_branch)
-    if selected_quarter:
-        records_query += " AND d.quarter = %s"
-        rec_params.append(selected_quarter)
-    if selected_month:
-        records_query += " AND EXTRACT(MONTH FROM d.date) = %s"
-        rec_params.append(selected_month)
-    if selected_year:
-        records_query += " AND EXTRACT(YEAR FROM d.date) = %s"
-        rec_params.append(selected_year)
-
-    records_query += " ORDER BY d.date DESC"
-    cur.execute(records_query, rec_params)
-    records = cur.fetchall()
 
     cur.close()
 
@@ -86,12 +70,7 @@ def index():
         'index.html',
         branches=branches,
         flyers=flyers,
-        summary=summary,
-        records=records,
-        selected_branch=selected_branch,
-        selected_quarter=selected_quarter,
-        selected_month=selected_month,
-        selected_year=selected_year
+        summary=summary
     )
 @app.route('/add_stock', methods=['POST'])
 def add_stock():

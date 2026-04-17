@@ -11,3 +11,7 @@ password: Z8d2JC7HP2
 
 its working perfectly fine, 
 so right now im using pgadmin4, and i know its offline, but if i want to published it so another users will access it and use it, im going to use postgresql online right? and the qustion is, am i going to create another tables for it or what should i do
+
+wix credentials
+user: heson@bangs.com.ph
+password: marketing2026!@
