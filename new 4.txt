@@ -15,3 +15,7 @@ so right now im using pgadmin4, and i know its offline, but if i want to publish
 wix credentials
 user: heson@bangs.com.ph
 password: marketing2026!@
+
+
+Internal url 
+postgresql://flyers_db_user:EPxxshJf2JINgzvYngYSiNgu74L9yV8Y@dpg-d79iv3qdbo4c73acmkpg-a/flyers_db

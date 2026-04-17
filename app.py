@@ -6,7 +6,14 @@ app = Flask(__name__)
 # PostgreSQL connection
 import os
 
-conn = psycopg2.connect(os.environ.get("postgresql://flyers_db_user:EPxxshJf2JINgzvYngYSiNgu74L9yV8Y@dpg-d79iv3qdbo4c73acmkpg-a/flyers_db"))
+import os
+
+db_url = os.environ.get("postgresql://flyers_db_user:EPxxshJf2JINgzvYngYSiNgu74L9yV8Y@dpg-d79iv3qdbo4c73acmkpg-a/flyers_db")
+
+if db_url.startswith("postgres://"):
+    db_url = db_url.replace("postgres://", "postgresql://", 1)
+
+conn = psycopg2.connect(db_url)
 
 # HOME PAGE
 @app.route('/')
