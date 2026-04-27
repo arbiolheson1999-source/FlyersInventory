@@ -1,0 +1,141 @@
+
+
+    <!DOCTYPE html>
+<html>
+<head>
+    <title>Flyers Inventory System</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <style>
+        body {
+            min-height: 100vh;
+            background:
+                radial-gradient(circle at top left, rgba(180, 170, 255, 0.18), transparent 35%),
+                radial-gradient(circle at bottom right, rgba(255, 220, 180, 0.20), transparent 35%),
+                linear-gradient(rgba(245, 247, 250, 0.90), rgba(245, 247, 250, 0.90)),
+                url("/static/logo1.jpg");
+            background-size: auto, auto, auto, 420px;
+            background-repeat: no-repeat, no-repeat, repeat, repeat;
+            background-position: top left, bottom right, center, center;
+            background-attachment: fixed;
+            font-family: Arial, sans-serif;
+        }
+
+        .page-wrap {
+            min-height: 100vh;
+            padding: 50px 20px;
+        }
+
+        .glass-card {
+            width: 100%;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px;
+            border-radius: 22px;
+            background: rgba(255, 255, 255, 0.78);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            border: 1px solid rgba(255, 255, 255, 0.85);
+            box-shadow: 0 20px 50px rgba(20, 20, 40, 0.08);
+        }
+
+        .page-title {
+            font-size: 28px;
+            font-weight: 800;
+            color: #15151f;
+            margin-bottom: 25px;
+        }
+
+        label {
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+
+        .form-control,
+        .form-select {
+            border-radius: 12px;
+            padding: 11px 14px;
+        }
+
+        .btn {
+            border-radius: 12px;
+            padding: 11px 18px;
+            font-weight: 600;
+        }
+
+        .back-btn {
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+
+<body>
+<div class="page-wrap">
+    <div class="glass-card">
+
+        <a href="/" class="btn btn-secondary back-btn">← Back to Dashboard</a>
+ <div class="card p-4 mb-4">
+        <h4>Filter Summary</h4>
+        <form method="GET" action="/filter-summary-page" class="row g-3">
+            <div class="col-md-3">
+                <label>Branch</label>
+                <select name="branch" class="form-control select2">
+                    <option value="">All</option>
+                    {% for b in branches %}
+                    <option value="{{ b[0] }}" {% if selected_branch == b[0]|string %}selected{% endif %}>{{ b[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-md-2">
+                <label>Month</label>
+                <select name="month" class="form-control">
+                    <option value="">All</option>
+                    {% for m in range(1,13) %}
+                    <option value="{{ m }}" {% if selected_month == m|string %}selected{% endif %}>{{ m }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+{% if summary and summary|length > 0 %}
+
+<div class="card p-4 mt-4">
+    <h4>Results</h4>
+
+    <div class="row">
+        {% for s in summary %}
+        <div class="col-md-4 mb-3">
+            <div class="card p-3 shadow-sm">
+                <div><strong>Branch:</strong> {{ s[0] }}</div>
+                <div><strong>Quarter:</strong> {{ s[1] }}</div>
+                <div><strong>Total Flyers:</strong> {{ s[2] }}</div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+</div>
+
+{% elif selected_branch or selected_month or selected_year %}
+
+<div class="alert alert-warning mt-4">
+    No results found.
+</div>
+
+{% endif %}
+            <div class="col-md-2">
+                <label>Year</label>
+                <input type="number" name="year" class="form-control" value="{{ selected_year or '' }}">
+            </div>
+
+            <div class="col-md-2 d-flex align-items-end">
+                <button class="btn btn-success w-100">Apply Filter</button>
+            </div>
+        </form>
+    </div>
+     
+
+    </div>
+</div>
+</body>
+</html>

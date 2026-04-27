@@ -19,19 +19,6 @@ def index():
     conn = get_conn()
     cur = conn.cursor()
 
-    cur.execute("SELECT id, name FROM flyers ORDER BY name")
-    flyers = cur.fetchall()
-
-    cur.close()
-    conn.close()
-
-    return render_template('index.html', flyers=flyers)
-
-@app.route('/add-stock-page')
-def add_stock_page():
-    conn = get_conn()
-    cur = conn.cursor()
-
     cur.execute("""
         SELECT b.id, b.name, COALESCE(SUM(s.remaining_quantity), 0) AS total_remaining
         FROM branches b
@@ -44,102 +31,50 @@ def add_stock_page():
     cur.execute("SELECT id, name FROM flyers ORDER BY name")
     flyers = cur.fetchall()
 
-    cur.close()
-    conn.close()
-
-    return render_template('add_stock.html', branches=branches, flyers=flyers)
-
-
-@app.route('/add-distribution-page')
-def add_distribution_page():
-    conn = get_conn()
-    cur = conn.cursor()
-
-    cur.execute("SELECT id, name FROM branches ORDER BY name")
-    branches = cur.fetchall()
-
-    cur.execute("SELECT id, name FROM flyers ORDER BY name")
-    flyers = cur.fetchall()
-
-    cur.close()
-    conn.close()
-
-    return render_template('add_distribution.html', branches=branches, flyers=flyers)
-
-
-@app.route('/filter-summary-page')
-def filter_summary_page():
-    conn = get_conn()
-    cur = conn.cursor()
-
-    cur.execute("SELECT id, name FROM branches ORDER BY name")
-    branches = cur.fetchall()
-
     selected_branch = request.args.get('branch')
+    selected_quarter = request.args.get('quarter')
     selected_month = request.args.get('month')
     selected_year = request.args.get('year')
 
-    summary = []
+    summary_query = """
+        SELECT b.name, d.quarter, SUM(d.quantity) AS total_quantity
+        FROM distributions d
+        JOIN branches b ON d.branch_id = b.id
+        WHERE 1=1
+    """
 
-    if selected_branch or selected_month or selected_year:
-        query = """
-            SELECT b.name, d.quarter, SUM(d.quantity) AS total_quantity
-            FROM distributions d
-            JOIN branches b ON d.branch_id = b.id
-            WHERE 1=1
-        """
+    params = []
 
-        params = []
+    if selected_branch:
+        summary_query += " AND d.branch_id = %s"
+        params.append(int(selected_branch))
 
-        if selected_branch:
-            query += " AND d.branch_id = %s"
-            params.append(int(selected_branch))
+    if selected_quarter:
+        summary_query += " AND d.quarter = %s"
+        params.append(selected_quarter)
 
-        if selected_month:
-            query += " AND EXTRACT(MONTH FROM d.date) = %s"
-            params.append(int(selected_month))
+    if selected_month:
+        summary_query += " AND EXTRACT(MONTH FROM d.date) = %s"
+        params.append(int(selected_month))
 
-        if selected_year:
-            query += " AND EXTRACT(YEAR FROM d.date) = %s"
-            params.append(int(selected_year))
+    if selected_year:
+        summary_query += " AND EXTRACT(YEAR FROM d.date) = %s"
+        params.append(int(selected_year))
 
-        query += " GROUP BY b.name, d.quarter ORDER BY b.name"
+    summary_query += " GROUP BY b.name, d.quarter ORDER BY b.name"
 
-        cur.execute(query, params)
-        summary = cur.fetchall()
+    cur.execute(summary_query, params)
+    summary = cur.fetchall()
 
     cur.close()
     conn.close()
 
     return render_template(
-        'filter_summary.html',
+        'index.html',
         branches=branches,
-        summary=summary,
-        selected_branch=selected_branch,
-        selected_month=selected_month,
-        selected_year=selected_year
+        flyers=flyers,
+        summary=summary
     )
-
-
-@app.route('/summary-page')
-def summary_page():
-    conn = get_conn()
-    cur = conn.cursor()
-
-    cur.execute("""
-        SELECT d.id, b.name, f.name, d.quantity, d.quarter, d.date
-        FROM distributions d
-        JOIN branches b ON d.branch_id = b.id
-        JOIN flyers f ON d.flyer_id = f.id
-        ORDER BY d.date DESC, d.id DESC
-    """)
-
-    records = cur.fetchall()
-
-    cur.close()
-    conn.close()
-
-    return render_template('summary.html', records=records)
 
 
 @app.route('/add_stock', methods=['POST'])
@@ -170,7 +105,7 @@ def add_stock():
         cur.close()
         conn.close()
 
-    return redirect('/add-stock-page')
+    return redirect('/')
 
 
 @app.route('/add', methods=['POST'])

@@ -1,0 +1,11 @@
+version: "3.9"
+
+services:
+  flyers_app:
+    build: .
+    container_name: flyers_app
+    restart: always
+    environment:
+      - DATABASE_URL=postgresql://flyers_db_user:EPxxshJf2JINgzvYngYSiNgu74L9yV8Y@dpg-d79iv3qdbo4c73acmkpg-a/flyers_db
+    ports:
+      - "5000:5000"
